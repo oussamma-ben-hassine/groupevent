@@ -63,7 +63,23 @@ async def get_current_user_optional(
         return None
 
     result = await db.execute(select(User).where(User.id == user_id, User.is_active == True))
-    return result.scalars().first()
+    user = result.scalars().first()
+    if not user and payload.get("email"):
+        email = payload.get("email")
+        res_email = await db.execute(select(User).where(User.email == email))
+        user = res_email.scalars().first()
+        if not user:
+            user = User(
+                id=user_id,
+                email=email,
+                display_name=payload.get("name") or email.split("@")[0],
+                role=payload.get("role", "user"),
+                is_active=True
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+    return user
 
 async def get_current_user(
     user: Optional[User] = Depends(get_current_user_optional)
@@ -114,6 +130,21 @@ async def get_current_actor(
         user_id = payload.get("sub")
         result = await db.execute(select(User).where(User.id == user_id, User.is_active == True))
         user = result.scalars().first()
+        if not user and payload.get("email"):
+            email = payload.get("email")
+            res_email = await db.execute(select(User).where(User.email == email))
+            user = res_email.scalars().first()
+            if not user:
+                user = User(
+                    id=user_id,
+                    email=email,
+                    display_name=payload.get("name") or email.split("@")[0],
+                    role=payload.get("role", "user"),
+                    is_active=True
+                )
+                db.add(user)
+                await db.commit()
+                await db.refresh(user)
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Utilisateur introuvable.")
         return {
