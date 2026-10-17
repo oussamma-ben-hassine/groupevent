@@ -11,9 +11,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 days
 
     # PostgreSQL
-    DATABASE_URL: str = "postgresql+asyncpg://groupevent_user:groupevent_secure_pass_2026@postgres:5432/groupevent_db"
+    DATABASE_URL: str = "postgresql+asyncpg://groupevent_user:groupevent_secret_pass_2026@postgres:5432/groupevent_db"
     POSTGRES_USER: str = "groupevent_user"
-    POSTGRES_PASSWORD: str = "groupevent_secure_pass_2026"
+    POSTGRES_PASSWORD: str = "groupevent_secret_pass_2026"
     POSTGRES_DB: str = "groupevent_db"
 
     # Redis

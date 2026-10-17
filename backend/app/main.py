@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 import logging
 from fastapi import FastAPI
@@ -5,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.core.redis import init_redis, close_redis
+import app.models.models
 
 from app.api.health import router as health_router
 from app.api.auth import router as auth_router
@@ -24,13 +26,26 @@ logger = logging.getLogger("groupevent")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.APP_NAME} ({settings.ENVIRONMENT})...")
-    # 1. Initialize schema in PostgreSQL
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database schema verified (Zero demo data initialized).")
+    # 1. Initialize schema in PostgreSQL with retries
+    retries = 10
+    while retries > 0:
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("Database schema verified (Zero demo data initialized).")
+            break
+        except Exception as e:
+            retries -= 1
+            logger.warning(f"Database connection waiting... ({e}), {retries} retries left")
+            if retries == 0:
+                raise
+            await asyncio.sleep(2)
 
     # 2. Initialize Redis
-    await init_redis()
+    try:
+        await init_redis()
+    except Exception as e:
+        logger.warning(f"Redis initialization warning: {e}")
 
     yield
 
