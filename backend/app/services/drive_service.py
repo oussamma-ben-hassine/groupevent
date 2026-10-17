@@ -1,6 +1,5 @@
 import os
 import uuid
-import aiofiles
 import httpx
 import logging
 from typing import Dict, Any, Optional
@@ -27,8 +26,8 @@ class DriveService:
 
         # Always save locally first for resilience
         try:
-            async with aiofiles.open(local_path, "wb") as f:
-                await f.write(file_bytes)
+            with open(local_path, "wb") as f:
+                f.write(file_bytes)
         except Exception as e:
             logger.error(f"Failed local file save: {e}")
 

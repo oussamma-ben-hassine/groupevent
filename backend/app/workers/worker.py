@@ -2,7 +2,6 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from sqlalchemy import select, update
-from app.core.database import session_factory if hasattr(app.core.database, 'session_factory') else None
 from app.core.database import async_session_maker
 from app.core.redis import init_redis, close_redis
 from app.models.models import InviteToken
