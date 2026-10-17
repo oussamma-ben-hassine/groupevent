@@ -1,4 +1,5 @@
 import io
+from typing import Optional, List, Dict, Any
 import qrcode
 import qrcode.image.svg
 from datetime import datetime, timezone, timedelta
