@@ -20,10 +20,10 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://redis:6379/0"
 
     # SSO OIDC (sso-a.oussamma.tn)
-    SSO_BASE_URL: str = "https://sso-a.oussamma.tn"
-    SSO_CLIENT_ID: str = "client_groupevent_app"
-    SSO_CLIENT_SECRET: str = "sec_groupevent_platform_secret_2026"
-    SSO_REDIRECT_URI: str = "https://group.oussamma.tn/auth/callback"
+    SSO_BASE_URL: str = os.getenv("SSO_BASE_URL") or os.getenv("SSO_ISSUER") or os.getenv("OIDC_ISSUER") or "https://sso-a.oussamma.tn"
+    SSO_CLIENT_ID: str = os.getenv("SSO_CLIENT_ID") or os.getenv("OIDC_CLIENT_ID") or "client_groupevent_app"
+    SSO_CLIENT_SECRET: str = os.getenv("SSO_CLIENT_SECRET") or os.getenv("OIDC_CLIENT_SECRET") or "sec_groupevent_platform_secret_2026"
+    SSO_REDIRECT_URI: str = os.getenv("SSO_REDIRECT_URI") or os.getenv("OIDC_REDIRECT_URI") or "https://group.oussamma.tn/auth/callback"
     SSO_SCOPES: str = "openid profile email"
     SUPER_ADMIN_EMAILS: str = "contact@oussamma.tn"
 

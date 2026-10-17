@@ -32,6 +32,7 @@ const AppContent: React.FC = () => {
   // Callback processing state
   const [callbackProcessing, setCallbackProcessing] = useState(false);
   const [callbackError, setCallbackError] = useState<string | null>(null);
+  const [authErrorBanner, setAuthErrorBanner] = useState<string | null>(null);
 
   // Listen to popstate for browser navigation
   useEffect(() => {
@@ -48,6 +49,11 @@ const AppContent: React.FC = () => {
     const searchParams = new URLSearchParams(currentSearch);
     const eventParam = searchParams.get('event');
     const tabParam = searchParams.get('tab') as 'groceries' | 'expenses' | 'balances' | null;
+    const authErr = searchParams.get('auth_error');
+
+    if (authErr) {
+      setAuthErrorBanner(decodeURIComponent(authErr));
+    }
 
     if (eventParam) {
       setSelectedEventId(eventParam);
@@ -218,6 +224,21 @@ const AppContent: React.FC = () => {
           onOpenAI={() => setIsAIModalOpen(true)}
           title={activeEvent ? activeEvent.title : undefined}
         />
+
+        {authErrorBanner && (
+          <div className="mx-4 lg:mx-8 mt-4 p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-red-500">error</span>
+              <p className="text-sm font-medium">{authErrorBanner}</p>
+            </div>
+            <button
+              onClick={() => setAuthErrorBanner(null)}
+              className="text-red-500 hover:text-red-700 dark:hover:text-red-200 text-sm font-semibold ml-4"
+            >
+              Fermer
+            </button>
+          </div>
+        )}
 
         <main className="flex-1 p-4 lg:p-8 max-w-7xl w-full mx-auto">
           {selectedEventId ? (

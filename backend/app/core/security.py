@@ -1,7 +1,8 @@
+import base64
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from jose import JWTError, jwt
 from fastapi import Request, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -21,6 +22,13 @@ def hash_token(token: str) -> str:
 
 def generate_random_token(length: int = 32) -> str:
     return secrets.token_urlsafe(length)
+
+def generate_pkce() -> Tuple[str, str]:
+    """Generates PKCE code_verifier and code_challenge conforming to RFC 7636 (S256)."""
+    code_verifier = secrets.token_urlsafe(32)
+    digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
+    code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+    return code_verifier, code_challenge
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()

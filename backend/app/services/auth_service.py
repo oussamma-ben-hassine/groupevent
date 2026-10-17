@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.core.config import settings
-from app.core.security import generate_random_token, hash_token, create_access_token
+from app.core.security import generate_random_token, hash_token, create_access_token, generate_pkce
 from app.models.models import User
 from app.services.supervisor_service import SupervisorService
 
@@ -21,8 +21,7 @@ class AuthService:
         Returns (auth_url, state, code_verifier).
         """
         state = f"{generate_random_token(16)}:{urllib.parse.quote(return_to)}"
-        code_verifier = generate_random_token(48)
-        code_challenge = hash_token(code_verifier)
+        code_verifier, code_challenge = generate_pkce()
 
         params = {
             "response_type": "code",
@@ -56,11 +55,14 @@ class AuthService:
             "code_verifier": code_verifier,
         }
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             token_resp = await client.post(
                 token_endpoint,
                 data=token_data,
-                headers={"Accept": "application/json"}
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Accept": "application/json"
+                }
             )
             if token_resp.status_code != 200:
                 logger.error(f"[SSO] Token exchange failed: {token_resp.text}")
