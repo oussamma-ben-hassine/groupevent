@@ -21,4 +21,4 @@ RUN mkdir -p /data/storage
 
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 2>&1 | tee /data/storage/backend.log || (echo 'BACKEND PROCESS EXITED' >> /data/storage/backend.log; sleep 3600)"]

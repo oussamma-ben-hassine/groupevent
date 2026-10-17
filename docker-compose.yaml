@@ -80,6 +80,8 @@ services:
     restart: unless-stopped
     ports:
       - "80"
+    volumes:
+      - storage_data:/data/storage:ro
     depends_on:
       - backend
 
