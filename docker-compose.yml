@@ -1,0 +1,89 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-groupevent_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-groupevent_secret_pass_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-groupevent_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-groupevent_user} -d ${POSTGRES_DB:-groupevent_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-groupevent_user}:${POSTGRES_PASSWORD:-groupevent_secret_pass_2026}@postgres:5432/${POSTGRES_DB:-groupevent_db}
+      - DATABASE_URL_SYNC=postgresql://${POSTGRES_USER:-groupevent_user}:${POSTGRES_PASSWORD:-groupevent_secret_pass_2026}@postgres:5432/${POSTGRES_DB:-groupevent_db}
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-groupevent-super-secure-production-secret-key-2026}
+      - APP_BASE_URL=${APP_BASE_URL:-https://group.oussamma.tn}
+      - SSO_ISSUER=${SSO_ISSUER:-https://sso-a.oussamma.tn}
+      - SSO_CLIENT_ID=${SSO_CLIENT_ID:-client_groupevent_app}
+      - SSO_CLIENT_SECRET=${SSO_CLIENT_SECRET:-sec_groupevent_platform_secret_2026}
+      - SSO_REDIRECT_URI=${SSO_REDIRECT_URI:-https://group.oussamma.tn/auth/callback}
+      - LITELLM_BASE_URL=${LITELLM_BASE_URL:-https://ai.oussamma.tn/v1}
+      - LITELLM_API_KEY=${LITELLM_API_KEY:-sk-oussamma-master-gateway-2026}
+      - LITELLM_MODEL=${LITELLM_MODEL:-gpt-4o-mini}
+      - DRIVE_API_URL=${DRIVE_API_URL:-https://drive.oussamma.tn}
+      - DRIVE_API_KEY=${DRIVE_API_KEY:-drv-master-key-2026}
+      - SUPERVISOR_API_URL=${SUPERVISOR_API_URL:-https://supervisor.oussamma.tn}
+      - SUPERVISOR_API_KEY=${SUPERVISOR_API_KEY:-sup-event-key-2026}
+      - STORAGE_DIR=/data/storage
+    volumes:
+      - storage_data:/data/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.worker"]
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-groupevent_user}:${POSTGRES_PASSWORD:-groupevent_secret_pass_2026}@postgres:5432/${POSTGRES_DB:-groupevent_db}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
+  storage_data:
