@@ -72,7 +72,7 @@ class EventMember(Base):
     # Relationships
     event = relationship("Event", back_populates="members")
     user = relationship("User", back_populates="memberships")
-    paid_expenses = relationship("Expense", back_populates="payer", foreign_keys="Expense.payer_id")
+    paid_expenses = relationship("Expense", back_populates="payer", foreign_keys=lambda: [Expense.payer_id])
     expense_splits = relationship("ExpenseSplit", back_populates="member", cascade="all, delete-orphan")
 
     @property
@@ -117,8 +117,8 @@ class GroceryItem(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     event = relationship("Event", back_populates="groceries")
-    bought_by = relationship("EventMember", foreign_keys=[bought_by_id])
-    assigned_to = relationship("EventMember", foreign_keys=[assigned_to_id])
+    bought_by = relationship("EventMember", foreign_keys=lambda: [GroceryItem.bought_by_id])
+    assigned_to = relationship("EventMember", foreign_keys=lambda: [GroceryItem.assigned_to_id])
 
 
 class Expense(Base):
@@ -140,7 +140,7 @@ class Expense(Base):
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     event = relationship("Event", back_populates="expenses")
-    payer = relationship("EventMember", back_populates="paid_expenses", foreign_keys=[payer_id])
+    payer = relationship("EventMember", back_populates="paid_expenses", foreign_keys=lambda: [Expense.payer_id])
     splits = relationship("ExpenseSplit", back_populates="expense", cascade="all, delete-orphan")
 
 
@@ -170,5 +170,5 @@ class Settlement(Base):
     notes = Column(Text, nullable=True)
 
     event = relationship("Event", back_populates="settlements")
-    from_member = relationship("EventMember", foreign_keys=[from_member_id])
-    to_member = relationship("EventMember", foreign_keys=[to_member_id])
+    from_member = relationship("EventMember", foreign_keys=lambda: [Settlement.from_member_id])
+    to_member = relationship("EventMember", foreign_keys=lambda: [Settlement.to_member_id])

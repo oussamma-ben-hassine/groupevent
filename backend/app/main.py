@@ -72,6 +72,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+@app.get("/health")
+def ping():
+    return {"status": "ok", "app": settings.APP_NAME}
+
 # Include Routers
 app.include_router(health_router)
 app.include_router(auth_router)
