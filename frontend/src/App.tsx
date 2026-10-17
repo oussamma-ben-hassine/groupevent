@@ -13,7 +13,7 @@ import { api } from './api/client';
 
 // Inner app component with auth context access
 const AppContent: React.FC = () => {
-  const { actor, loading: authLoading, checkAuth } = useAuth();
+  const { actor, loading: authLoading, refresh: checkAuth } = useAuth();
 
   // Navigation state
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -259,9 +259,9 @@ const AppContent: React.FC = () => {
       <AIAssistantModal
         isOpen={isAIModalOpen}
         onClose={() => setIsAIModalOpen(false)}
-        eventId={selectedEventId || undefined}
-        onIngredientsSuggested={() => {
-          // If in groceries tab, will reload naturally on next visit
+        event={activeEvent || undefined}
+        onGroceriesAdded={() => {
+          refreshEvents();
         }}
       />
     </div>
