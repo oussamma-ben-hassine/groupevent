@@ -23,11 +23,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("groupevent")
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info(f"Starting {settings.APP_NAME} ({settings.ENVIRONMENT})...")
-    # 1. Initialize schema in PostgreSQL with retries
-    retries = 10
+async def init_db_schema():
+    retries = 20
     while retries > 0:
         try:
             async with engine.begin() as conn:
@@ -36,12 +33,16 @@ async def lifespan(app: FastAPI):
             break
         except Exception as e:
             retries -= 1
-            logger.warning(f"Database connection waiting... ({e}), {retries} retries left")
-            if retries == 0:
-                raise
+            logger.warning(f"Database schema init waiting for PostgreSQL... ({e}), {retries} retries left")
             await asyncio.sleep(2)
 
-    # 2. Initialize Redis
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info(f"Starting {settings.APP_NAME} ({settings.ENVIRONMENT})...")
+    # Non-blocking schema initialization in background so Uvicorn binds immediately
+    asyncio.create_task(init_db_schema())
+
+    # Redis initialization
     try:
         await init_redis()
     except Exception as e:
