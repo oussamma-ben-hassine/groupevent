@@ -197,8 +197,11 @@ export const EventDetail: React.FC<EventDetailProps> = ({
         <ExpensesTab
           event={event}
           expenses={expenses}
+          balances={balances}
+          settlements={settlements}
           loading={loading}
           onRefresh={fetchEventData}
+          onNavigateBalances={() => onChangeSubTab('balances')}
         />
       )}
 

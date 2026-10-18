@@ -19,7 +19,8 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
   onRefresh,
   onOpenAI
 }) => {
-  // Main view filter: 'all' | 'grocery' | 'material' | 'personal' | 'my_choices' | 'unassigned'
+  // Main view filter:
+  // 'all' | 'grocery' | 'material_group' | 'material_personal' | 'personal_purchase' | 'my_unpaid' | 'paid' | 'unassigned'
   const [viewFilter, setViewFilter] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
@@ -132,7 +133,7 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
     }
   };
 
-  // Toggle is_bought
+  // Toggle is_bought (caddie / payé)
   const handleToggleBought = async (item: GroceryItem) => {
     try {
       await api.updateGrocery(event.id, item.id, {
@@ -145,8 +146,13 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
   };
 
   // 1-click Claim / Release item
+  // Note: user requested "tu peux le mettre à 'je m'en charge' sauf si n'est pas encore payé"
   const handleClaimToggle = async (item: GroceryItem, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (item.is_bought) {
+      alert("Cet article a déjà été payé en magasin ! Décochez-le d'abord si vous souhaitez modifier son statut.");
+      return;
+    }
     const isClaimedByMe = item.assigned_to_id === event.current_member_id;
     try {
       await api.claimGrocery(event.id, item.id, isClaimedByMe ? 'release' : 'claim');
@@ -197,14 +203,12 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
       const res = await api.scanReceipt(event.id, file);
       setScanResult(res);
 
-      // Pre-fill selections for matches
       const matchMap: Record<string, { price: number; included: boolean }> = {};
       res.matches.forEach(m => {
         matchMap[m.item_id] = { price: m.matched_price, included: true };
       });
       setSelectedMatches(matchMap);
 
-      // Reset unmatched selections
       const unMap: Record<number, boolean> = {};
       res.unmatched_receipt_items.forEach((_, idx) => {
         unMap[idx] = false;
@@ -277,10 +281,12 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
 
   // View Filtering
   const viewFiltered = groceries.filter(item => {
-    if (viewFilter === 'grocery') return item.item_type !== 'material';
-    if (viewFilter === 'material') return item.item_type === 'material';
-    if (viewFilter === 'personal') return item.scope === 'personal';
-    if (viewFilter === 'my_choices') return item.assigned_to_id === event.current_member_id;
+    if (viewFilter === 'grocery') return item.item_type !== 'material' && item.scope !== 'personal';
+    if (viewFilter === 'material_group') return item.item_type === 'material' && item.scope !== 'personal';
+    if (viewFilter === 'material_personal') return item.item_type === 'material' && item.scope === 'personal';
+    if (viewFilter === 'personal_purchase') return item.scope === 'personal' && item.item_type !== 'material';
+    if (viewFilter === 'my_unpaid') return item.assigned_to_id === event.current_member_id && !item.is_bought;
+    if (viewFilter === 'paid') return item.is_bought;
     if (viewFilter === 'unassigned') return !item.assigned_to_id && !item.is_bought;
     return true;
   });
@@ -288,6 +294,16 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
   const finalFiltered = selectedCategory === 'all'
     ? viewFiltered
     : viewFiltered.filter(g => g.category === selectedCategory);
+
+  // Dynamic placeholder based on selected type and scope
+  const getQuickPlaceholder = () => {
+    if (quickType === 'material') {
+      if (quickScope === 'group') return 'Ex: Barbecue (BBQ), Pinces, Glacière, Grande table...';
+      return 'Ex: Tente 2 places, Sac de couchage, Matelas, Serviette...';
+    }
+    if (quickScope === 'personal') return 'Ex: Shampoing spécial, Lait sans lactose pour moi...';
+    return 'Ex: Tomates, Pain burger, Eau minérale, Merguez...';
+  };
 
   return (
     <div className="space-y-5">
@@ -298,11 +314,11 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-blue-600 text-xl">shopping_cart</span>
               <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">
-                Panier de Courses & Matériel
+                Panier de Courses & Matériel Partagé
               </h2>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Chacun choisit ce qu'il apporte ou achète. Cochez les articles au fur et à mesure du passage en magasin.
+              Chacun choisit ce qu'il apporte ou achète (« Je m'en charge »). Les articles passent au statut « Payé » lors du passage en caisse.
             </p>
           </div>
 
@@ -359,7 +375,7 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
             <span>
-              {boughtItems} sur {totalItems} dans le caddie ({progressPct}%)
+              {boughtItems} sur {totalItems} payés / apportés ({progressPct}%)
             </span>
             <span className="font-mono text-blue-600 dark:text-blue-400">
               {totalEstimated > 0 ? `Total : ${totalEstimated.toFixed(2)} ${event.currency}` : ''}
@@ -374,7 +390,7 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
         </div>
       </div>
 
-      {/* Main View Filter Pills (Collaboration & Material) */}
+      {/* Main View Filter Pills (Distinct Group vs Personal Material & Status) */}
       <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
         <button
           type="button"
@@ -399,33 +415,52 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
           }`}
         >
           <span className="material-symbols-outlined text-sm">local_grocery_store</span>
-          <span>Courses</span>
+          <span>Courses Groupe</span>
           <span className="text-[10px] opacity-75">
-            ({groceries.filter(g => g.item_type !== 'material').length})
+            ({groceries.filter(g => g.item_type !== 'material' && g.scope !== 'personal').length})
           </span>
         </button>
 
+        {/* Group Material (Barbecue, Glacière, Tables...) */}
         <button
           type="button"
-          onClick={() => setViewFilter('material')}
+          onClick={() => setViewFilter('material_group')}
           className={`px-3.5 py-1.5 rounded-2xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            viewFilter === 'material'
+            viewFilter === 'material_group'
               ? 'bg-amber-600 text-white shadow-xs'
               : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
           }`}
         >
-          <span className="material-symbols-outlined text-sm">skillet</span>
-          <span>Matériel à apporter</span>
+          <span className="material-symbols-outlined text-sm">outdoor_grill</span>
+          <span>🔥 Matériel Groupe (BBQ...)</span>
           <span className="text-[10px] opacity-75">
-            ({groceries.filter(g => g.item_type === 'material').length})
+            ({groceries.filter(g => g.item_type === 'material' && g.scope !== 'personal').length})
           </span>
         </button>
 
+        {/* Personal Material (Tente, Sac de couchage...) */}
         <button
           type="button"
-          onClick={() => setViewFilter('personal')}
+          onClick={() => setViewFilter('material_personal')}
           className={`px-3.5 py-1.5 rounded-2xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            viewFilter === 'personal'
+            viewFilter === 'material_personal'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
+          }`}
+        >
+          <span className="material-symbols-outlined text-sm">camping</span>
+          <span>⛺ Matériel Perso (Tente...)</span>
+          <span className="text-[10px] opacity-75">
+            ({groceries.filter(g => g.item_type === 'material' && g.scope === 'personal').length})
+          </span>
+        </button>
+
+        {/* Personal Purchases (Achats spécifiques remboursés 100%) */}
+        <button
+          type="button"
+          onClick={() => setViewFilter('personal_purchase')}
+          className={`px-3.5 py-1.5 rounded-2xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+            viewFilter === 'personal_purchase'
               ? 'bg-purple-600 text-white shadow-xs'
               : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
           }`}
@@ -433,26 +468,45 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
           <span className="material-symbols-outlined text-sm">person</span>
           <span>Achats Perso</span>
           <span className="text-[10px] opacity-75">
-            ({groceries.filter(g => g.scope === 'personal').length})
+            ({groceries.filter(g => g.scope === 'personal' && g.item_type !== 'material').length})
           </span>
         </button>
 
+        {/* Mes choix non encore payés */}
         <button
           type="button"
-          onClick={() => setViewFilter('my_choices')}
+          onClick={() => setViewFilter('my_unpaid')}
           className={`px-3.5 py-1.5 rounded-2xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-            viewFilter === 'my_choices'
+            viewFilter === 'my_unpaid'
               ? 'bg-blue-600 text-white shadow-xs'
               : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
           }`}
         >
-          <span className="material-symbols-outlined text-sm">verified</span>
-          <span>Mes choix</span>
+          <span className="material-symbols-outlined text-sm">assignment_turned_in</span>
+          <span>⭐ Mes choix (À acheter)</span>
           <span className="text-[10px] opacity-75">
-            ({groceries.filter(g => g.assigned_to_id === event.current_member_id).length})
+            ({groceries.filter(g => g.assigned_to_id === event.current_member_id && !g.is_bought).length})
           </span>
         </button>
 
+        {/* Déjà Payés en caisse */}
+        <button
+          type="button"
+          onClick={() => setViewFilter('paid')}
+          className={`px-3.5 py-1.5 rounded-2xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+            viewFilter === 'paid'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
+          }`}
+        >
+          <span className="material-symbols-outlined text-sm">check_circle</span>
+          <span>💳 Déjà Payés</span>
+          <span className="text-[10px] opacity-75">
+            ({groceries.filter(g => g.is_bought).length})
+          </span>
+        </button>
+
+        {/* À pourvoir */}
         <button
           type="button"
           onClick={() => setViewFilter('unassigned')}
@@ -470,7 +524,7 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
         </button>
       </div>
 
-      {/* Quick Add Bar */}
+      {/* Quick Add Bar with Explicit Material Group vs Personal Switch */}
       <form
         onSubmit={handleQuickAdd}
         className="bg-white dark:bg-slate-800 p-3.5 rounded-3xl border border-slate-200/80 dark:border-slate-700 shadow-xs flex flex-wrap sm:flex-nowrap items-center gap-2"
@@ -491,8 +545,17 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
           onChange={(e) => setQuickScope(e.target.value as any)}
           className="px-2.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold outline-hidden cursor-pointer"
         >
-          <option value="group">👥 Groupe</option>
-          <option value="personal">👤 Perso</option>
+          {quickType === 'material' ? (
+            <>
+              <option value="group">🔥 Matériel Groupe (BBQ...)</option>
+              <option value="personal">⛺ Matériel Perso (Tente...)</option>
+            </>
+          ) : (
+            <>
+              <option value="group">👥 Groupe (Partagé)</option>
+              <option value="personal">👤 Achat Perso (Remboursé 100%)</option>
+            </>
+          )}
         </select>
 
         {/* Beneficiary if personal */}
@@ -501,10 +564,12 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
             value={quickBeneficiary}
             onChange={(e) => setQuickBeneficiary(e.target.value)}
             className="px-2.5 py-2 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-2xl text-xs font-bold outline-hidden cursor-pointer"
-            title="Bénéficiaire de l'achat personnel"
+            title="Pour quel participant ?"
           >
             {(event.members || []).map(m => (
-              <option key={m.id} value={m.id}>Pour {m.display_title}</option>
+              <option key={m.id} value={m.id}>
+                {m.display_title} {m.id === event.current_member_id ? '(Moi)' : ''}
+              </option>
             ))}
           </select>
         )}
@@ -515,7 +580,7 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
             required
             value={quickName}
             onChange={(e) => setQuickName(e.target.value)}
-            placeholder={quickType === 'material' ? 'Ex: Poêle, Cuillères, Glacière...' : 'Ex: Tomates, Lait, Pains...'}
+            placeholder={getQuickPlaceholder()}
             className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-slate-100 outline-hidden focus:border-blue-500"
           />
         </div>
@@ -629,11 +694,14 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
               >
                 {/* Left: Checkbox + Name + Badges */}
                 <div className="flex items-start sm:items-center gap-3 min-w-0">
-                  <div className={`w-6 h-6 mt-0.5 sm:mt-0 rounded-lg flex items-center justify-center border transition-colors flex-shrink-0 ${
-                    item.is_bought
-                      ? 'bg-emerald-500 border-emerald-500 text-white'
-                      : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600'
-                  }`}>
+                  <div
+                    title={item.is_bought ? "Payé / Dans le caddie (cliquer pour décocher)" : "Cocher comme payé / acheté"}
+                    className={`w-6 h-6 mt-0.5 sm:mt-0 rounded-lg flex items-center justify-center border transition-colors flex-shrink-0 ${
+                      item.is_bought
+                        ? 'bg-emerald-500 border-emerald-500 text-white'
+                        : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600'
+                    }`}
+                  >
                     {item.is_bought && (
                       <span className="material-symbols-outlined text-base">check</span>
                     )}
@@ -647,19 +715,26 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
                         {item.name}
                       </span>
 
-                      {/* Type Badge */}
-                      {item.item_type === 'material' && (
-                        <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 rounded-md text-[10px] font-extrabold flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[11px]">skillet</span>
-                          <span>Matériel</span>
+                      {/* Distinction Matériel Groupe (BBQ) vs Matériel Perso (Tente) */}
+                      {item.item_type === 'material' && item.scope === 'group' && (
+                        <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 rounded-md text-[10px] font-extrabold flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[11px]">outdoor_grill</span>
+                          <span>Matériel Groupe (BBQ...)</span>
                         </span>
                       )}
 
-                      {/* Scope Badge (Personal purchase) */}
-                      {item.scope === 'personal' && (
+                      {item.item_type === 'material' && item.scope === 'personal' && (
+                        <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950/50 text-indigo-800 dark:text-indigo-300 rounded-md text-[10px] font-extrabold flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[11px]">camping</span>
+                          <span>Matériel Perso : {item.beneficiary_name || 'Moi'}</span>
+                        </span>
+                      )}
+
+                      {/* Scope Badge (Personal purchase / courses) */}
+                      {item.item_type !== 'material' && item.scope === 'personal' && (
                         <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 rounded-md text-[10px] font-extrabold flex items-center gap-1">
                           <span className="material-symbols-outlined text-[11px]">person</span>
-                          <span>Perso : {item.beneficiary_name || 'Membre'}</span>
+                          <span>Achat Perso : {item.beneficiary_name || 'Membre'}</span>
                         </span>
                       )}
                     </div>
@@ -671,20 +746,29 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
                   </div>
                 </div>
 
-                {/* Right: Claim Button + Qty + Price + Delete */}
+                {/* Right: Status (Je m'en charge vs Payé) + Qty + Price + Delete */}
                 <div className="flex items-center justify-between sm:justify-end gap-2.5 flex-shrink-0">
-                  {/* Responsibility / Claiming Action */}
-                  {isClaimedByMe ? (
+                  {/*
+                    User requirement: "sinon les course tu peut le mettre a 'je mencharge ' sauf si n'es pas encoré payé"
+                    - If item is already paid/bought (item.is_bought): show green badge "Payé en magasin", cannot simply release.
+                    - If item is NOT paid yet: show "Je m'en charge" / "Libérer" or "À pourvoir".
+                  */}
+                  {item.is_bought ? (
+                    <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 rounded-xl text-[11px] font-extrabold flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs">verified</span>
+                      <span>Payé {item.bought_by_name ? `par ${item.bought_by_name}` : ''}</span>
+                    </span>
+                  ) : isClaimedByMe ? (
                     <div className="flex items-center gap-1">
                       <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-xl text-[11px] font-extrabold flex items-center gap-1">
                         <span className="material-symbols-outlined text-xs">check_circle</span>
-                        <span>Choisi par moi</span>
+                        <span>Je m'en charge</span>
                       </span>
                       <button
                         type="button"
                         onClick={(e) => handleClaimToggle(item, e)}
                         className="px-2 py-1 text-[11px] text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                        title="Je me désiste / Libérer cet article"
+                        title="Je me désiste / Libérer cet article (possible car non encore payé)"
                       >
                         Libérer
                       </button>
@@ -692,7 +776,7 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
                   ) : item.assigned_to_name ? (
                     <span className="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-[11px] font-bold flex items-center gap-1">
                       <span className="material-symbols-outlined text-xs">person</span>
-                      <span>{item.assigned_to_name}</span>
+                      <span>Pris par {item.assigned_to_name}</span>
                     </span>
                   ) : (
                     <button
@@ -718,7 +802,7 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
                         {item.actual_price.toFixed(2)} {event.currency}
                       </span>
                       <span className="text-[9px] uppercase tracking-wider text-emerald-500/80 font-bold">
-                        Réel
+                        Payé
                       </span>
                     </div>
                   ) : item.estimated_price !== undefined && item.estimated_price !== null ? (
@@ -759,29 +843,38 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block mb-1">
-                Type
+                Catégorie d'élément
               </label>
               <select
                 value={modalType}
                 onChange={(e) => setModalType(e.target.value as any)}
-                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold outline-hidden"
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold outline-hidden cursor-pointer"
               >
-                <option value="grocery">🛒 Course (Consommable)</option>
-                <option value="material">🍳 Matériel (À apporter)</option>
+                <option value="grocery">🛒 Course (Consommable / Nourriture)</option>
+                <option value="material">🍳 Matériel / Équipement</option>
               </select>
             </div>
 
             <div>
               <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block mb-1">
-                Portée financière
+                Portée (Groupe vs Perso)
               </label>
               <select
                 value={modalScope}
                 onChange={(e) => setModalScope(e.target.value as any)}
-                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold outline-hidden"
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold outline-hidden cursor-pointer"
               >
-                <option value="group">👥 Groupe (Partagé équitablement)</option>
-                <option value="personal">👤 Achat Perso (100% remboursé)</option>
+                {modalType === 'material' ? (
+                  <>
+                    <option value="group">🔥 Matériel Groupe (BBQ, table, réchaud...)</option>
+                    <option value="personal">⛺ Matériel Perso (Tente, duvet, serviette...)</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="group">👥 Course Groupe (Partagé équitablement)</option>
+                    <option value="personal">👤 Achat Perso (100% remboursé)</option>
+                  </>
+                )}
               </select>
             </div>
           </div>
@@ -789,7 +882,7 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
           {modalScope === 'personal' && (
             <div className="p-3 bg-purple-50 dark:bg-purple-950/30 rounded-2xl border border-purple-200 dark:border-purple-800">
               <label className="text-[11px] font-bold text-purple-800 dark:text-purple-300 uppercase tracking-wider block mb-1">
-                Bénéficiaire de l'achat personnel
+                {modalType === 'material' ? 'Pour quel participant est ce matériel perso ?' : "Bénéficiaire de l'achat personnel"}
               </label>
               <select
                 value={modalBeneficiary}
@@ -797,11 +890,15 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
                 className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-100 outline-hidden"
               >
                 {(event.members || []).map(m => (
-                  <option key={m.id} value={m.id}>{m.display_title}</option>
+                  <option key={m.id} value={m.id}>
+                    {m.display_title} {m.id === event.current_member_id ? '(Moi)' : ''}
+                  </option>
                 ))}
               </select>
               <p className="text-[10px] text-purple-700 dark:text-purple-400 mt-1">
-                Ce montant sera 100% à la charge de ce participant lors du décompte des dépenses.
+                {modalType === 'material'
+                  ? 'Ce matériel est sous la responsabilité individuelle de ce participant.'
+                  : 'Ce montant sera 100% à la charge de ce participant lors du décompte des dépenses.'}
               </p>
             </div>
           )}
@@ -815,7 +912,7 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
               required
               value={modalName}
               onChange={(e) => setModalName(e.target.value)}
-              placeholder="Ex: Poêle antiadhésive, Côte de bœuf, Glacière..."
+              placeholder={modalType === 'material' ? (modalScope === 'group' ? 'Ex: Barbecue, Pinces, Glacière...' : 'Ex: Tente 2 places, Sac de couchage...') : 'Ex: Steaks hachés, Baguettes, Eau...'}
               className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-800 dark:text-slate-100 outline-hidden"
             />
           </div>
@@ -880,16 +977,18 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
             </div>
             <div>
               <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block mb-1">
-                Responsable
+                Responsable initial
               </label>
               <select
                 value={modalAssigned}
                 onChange={(e) => setModalAssigned(e.target.value)}
-                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs outline-hidden"
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs outline-hidden cursor-pointer"
               >
-                <option value="">À pourvoir</option>
+                <option value="">À pourvoir (chacun peut s'en charger)</option>
                 {(event.members || []).map(m => (
-                  <option key={m.id} value={m.id}>{m.display_title}</option>
+                  <option key={m.id} value={m.id}>
+                    {m.display_title} {m.id === event.current_member_id ? '(Moi)' : ''}
+                  </option>
                 ))}
               </select>
             </div>
@@ -903,7 +1002,7 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
               type="text"
               value={modalNotes}
               onChange={(e) => setModalNotes(e.target.value)}
-              placeholder="Ex: Prendre marque bio, sans gluten, etc."
+              placeholder="Ex: Penser au charbon de bois pour le barbecue..."
               className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs outline-hidden"
             />
           </div>
@@ -938,7 +1037,6 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
         subtitle="Lecture optique IA des prix réels de vos courses via LiteLLM"
       >
         <div className="space-y-4">
-          {/* File input / camera capture */}
           {!scanResult && (
             <div className="text-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-3xl">
               <span className="material-symbols-outlined text-4xl text-blue-600 mb-2">photo_camera</span>
@@ -971,7 +1069,6 @@ export const GroceriesTab: React.FC<GroceriesTabProps> = ({
             </div>
           )}
 
-          {/* Scan Results & Price Matching */}
           {scanResult && (
             <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
               <div className="p-3.5 bg-blue-50 dark:bg-blue-950/30 rounded-2xl border border-blue-200 dark:border-blue-800 flex items-center justify-between">
