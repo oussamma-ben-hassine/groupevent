@@ -259,7 +259,8 @@ async def delete_event(
     if not ev:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Événement introuvable.")
 
-    if actor["type"] != "user" or ev.organizer_id != actor["user_id"]:
+    is_admin = actor.get("role") in ["admin", "superadmin"] or (actor.get("user") and getattr(actor["user"], "role", None) in ["admin", "superadmin"])
+    if actor["type"] != "user" or (ev.organizer_id != actor["user_id"] and not is_admin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Action réservée à l'organisateur.")
 
     await db.delete(ev)

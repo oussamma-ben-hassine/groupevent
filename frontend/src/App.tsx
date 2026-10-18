@@ -247,6 +247,10 @@ const AppContent: React.FC = () => {
               onBack={handleBackToDashboard}
               activeSubTab={activeSubTab}
               onChangeSubTab={handleSubTabChange}
+              onEventDeleted={() => {
+                refreshEvents();
+                handleBackToDashboard();
+              }}
             />
           ) : (
             <Dashboard

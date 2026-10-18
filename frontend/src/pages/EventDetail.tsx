@@ -12,13 +12,15 @@ interface EventDetailProps {
   onBack: () => void;
   activeSubTab: 'groceries' | 'expenses' | 'balances';
   onChangeSubTab: (tab: 'groceries' | 'expenses' | 'balances') => void;
+  onEventDeleted?: () => void;
 }
 
 export const EventDetail: React.FC<EventDetailProps> = ({
   eventId,
   onBack,
   activeSubTab,
-  onChangeSubTab
+  onChangeSubTab,
+  onEventDeleted
 }) => {
   const [event, setEvent] = useState<EventItem | null>(null);
   const [groceries, setGroceries] = useState<GroceryItem[]>([]);
@@ -63,6 +65,23 @@ export const EventDetail: React.FC<EventDetailProps> = ({
       </div>
     );
   }
+
+  const handleDeleteEvent = async () => {
+    if (!event) return;
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer définitivement l'événement « ${event.title} » ainsi que toutes ses courses et dépenses associées ?`)) {
+      return;
+    }
+    try {
+      await api.deleteEvent(event.id);
+      if (onEventDeleted) {
+        onEventDeleted();
+      } else {
+        onBack();
+      }
+    } catch (err: any) {
+      alert(err.message || "Erreur lors de la suppression de l'événement.");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -118,7 +137,7 @@ export const EventDetail: React.FC<EventDetailProps> = ({
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2 self-end sm:self-center">
+          <div className="flex flex-wrap items-center gap-2 self-end sm:self-center">
             <button
               type="button"
               onClick={() => setIsShareModalOpen(true)}
@@ -136,6 +155,17 @@ export const EventDetail: React.FC<EventDetailProps> = ({
               <span className="material-symbols-outlined text-base">smart_toy</span>
               <span className="hidden sm:inline">IA</span>
             </button>
+            {event.is_organizer && (
+              <button
+                type="button"
+                onClick={handleDeleteEvent}
+                className="px-3.5 py-2.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-2xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                title="Supprimer définitivement cet événement"
+              >
+                <span className="material-symbols-outlined text-base">delete</span>
+                <span className="hidden sm:inline">Supprimer</span>
+              </button>
+            )}
           </div>
         </div>
 

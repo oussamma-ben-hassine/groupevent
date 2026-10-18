@@ -68,6 +68,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
+  const handleDeleteEvent = async (evId: string, evTitle: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer définitivement l'événement « ${evTitle} » ainsi que toutes ses courses et dépenses ?`)) {
+      return;
+    }
+    try {
+      await api.deleteEvent(evId);
+      onRefreshEvents();
+    } catch (err: any) {
+      alert(err.message || "Erreur lors de la suppression de l'événement.");
+    }
+  };
+
   const icons = ['🎉', '🍕', '🏖️', '🏕️', '🍻', '🍔', '✈️', '⛷️', '🎁', '🛒'];
 
   return (
@@ -137,13 +150,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-slate-700/60 flex items-center justify-center text-2xl group-hover:scale-105 transition-transform flex-shrink-0">
                     {ev.icon || '🎉'}
                   </div>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                    ev.status === 'active'
-                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800'
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
-                  }`}>
-                    {ev.status === 'active' ? 'En cours' : 'Terminé'}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                      ev.status === 'active'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                    }`}>
+                      {ev.status === 'active' ? 'En cours' : 'Terminé'}
+                    </span>
+                    {(actor && (actor.id === ev.organizer_id || actor.role === 'superadmin' || actor.role === 'admin' || ev.is_organizer)) && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteEvent(ev.id, ev.title, e)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-all cursor-pointer"
+                        title="Supprimer cet événement"
+                      >
+                        <span className="material-symbols-outlined text-base">delete</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <h3 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1 mb-1">
