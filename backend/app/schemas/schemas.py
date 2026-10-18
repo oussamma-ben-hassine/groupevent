@@ -121,7 +121,11 @@ class GroceryItemCreate(BaseModel):
     quantity: float = 1.0
     unit: str = "pièce"
     category: str = "Autre"
+    item_type: str = "grocery"   # 'grocery' (courses), 'material' (matériel/équipement)
+    scope: str = "group"         # 'group' (partagé), 'personal' (achat perso)
+    beneficiary_id: Optional[str] = None
     estimated_price: Optional[float] = None
+    actual_price: Optional[float] = None
     assigned_to_id: Optional[str] = None
     notes: Optional[str] = None
 
@@ -130,11 +134,18 @@ class GroceryItemUpdate(BaseModel):
     quantity: Optional[float] = None
     unit: Optional[str] = None
     category: Optional[str] = None
+    item_type: Optional[str] = None
+    scope: Optional[str] = None
+    beneficiary_id: Optional[str] = None
     estimated_price: Optional[float] = None
+    actual_price: Optional[float] = None
     is_bought: Optional[bool] = None
     bought_by_id: Optional[str] = None
     assigned_to_id: Optional[str] = None
     notes: Optional[str] = None
+
+class GroceryClaimRequest(BaseModel):
+    action: str = "claim"  # 'claim' or 'release'
 
 class GroceryItemResponse(BaseModel):
     id: str
@@ -143,7 +154,12 @@ class GroceryItemResponse(BaseModel):
     quantity: float
     unit: str
     category: str
+    item_type: str = "grocery"
+    scope: str = "group"
+    beneficiary_id: Optional[str] = None
+    beneficiary_name: Optional[str] = None
     estimated_price: Optional[float]
+    actual_price: Optional[float] = None
     is_bought: bool
     bought_by_id: Optional[str]
     bought_by_name: Optional[str] = None
@@ -154,6 +170,54 @@ class GroceryItemResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+# ==================== RECEIPT OCR & MATCHING SCHEMAS ====================
+class ReceiptExtractedItem(BaseModel):
+    name: str
+    price: float
+    quantity: float = 1.0
+    raw_line: Optional[str] = None
+
+class ReceiptItemMatch(BaseModel):
+    item_id: str
+    item_name: str
+    item_type: str = "grocery"
+    scope: str = "group"
+    beneficiary_id: Optional[str] = None
+    current_estimated_price: Optional[float] = None
+    matched_receipt_name: str
+    matched_price: float
+    confidence: float
+
+class ReceiptScanResponse(BaseModel):
+    store_name: Optional[str] = "Magasin inconnu"
+    receipt_date: Optional[str] = None
+    receipt_total: Optional[float] = None
+    extracted_items: List[ReceiptExtractedItem] = []
+    matches: List[ReceiptItemMatch] = []
+    unmatched_receipt_items: List[ReceiptExtractedItem] = []
+    receipt_image_url: Optional[str] = None
+
+class ApplyReceiptItem(BaseModel):
+    item_id: str
+    actual_price: float
+    is_bought: bool = True
+
+class ApplyReceiptNewItem(BaseModel):
+    name: str
+    price: float
+    category: str = "Autre"
+    item_type: str = "grocery"
+    scope: str = "group"
+    beneficiary_id: Optional[str] = None
+
+class ApplyReceiptRequest(BaseModel):
+    items: List[ApplyReceiptItem] = []
+    new_items: List[ApplyReceiptNewItem] = []
+    create_expense: bool = True
+    expense_title: str = "Ticket de caisse supermarché"
+    payer_id: Optional[str] = None
+    receipt_url: Optional[str] = None
 
 
 # ==================== EXPENSE SCHEMAS ====================

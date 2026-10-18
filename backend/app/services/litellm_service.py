@@ -91,3 +91,102 @@ class LiteLLMService:
             "suggested_groceries": None,
             "model_used": "fallback"
         }
+
+    @staticmethod
+    async def parse_receipt_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> Dict[str, Any]:
+        """
+        Parses a supermarket receipt photo via Vision OCR using LiteLLM (ai.oussamma.tn/v1).
+        Extracts store name, total amount, date, and individual item lines with prices.
+        """
+        import base64
+        import re
+
+        base64_img = base64.b64encode(image_bytes).decode("utf-8")
+        data_uri = f"data:{mime_type};base64,{base64_img}"
+
+        url = f"{settings.LITELLM_BASE_URL.rstrip('/')}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.LITELLM_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        prompt_text = (
+            "Analyse avec précision ce ticket de caisse de magasin ou supermarché.\n"
+            "Extrais le nom du magasin, la date, le montant total payé, et la liste détaillée de chaque produit avec son prix unitaire ou de ligne.\n"
+            "Réponds STRICTEMENT avec un objet JSON au format suivant :\n"
+            "```json\n"
+            "{\n"
+            '  "store_name": "Nom du magasin (ex: Carrefour, Lidl, Auchan, Monoprix, Leclerc...)",\n'
+            '  "date": "YYYY-MM-DD",\n'
+            '  "total": 42.50,\n'
+            '  "items": [\n'
+            '    {"name": "Nom lisible du produit", "price": 2.50, "quantity": 1.0},\n'
+            '    {"name": "Autre produit", "price": 3.80, "quantity": 2.0}\n'
+            "  ]\n"
+            "}\n"
+            "```"
+        )
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt_text},
+                    {"type": "image_url", "image_url": {"url": data_uri}}
+                ]
+            }
+        ]
+
+        models_to_try = [
+            "gpt-4o-mini",
+            settings.LITELLM_DEFAULT_MODEL,
+            "gemini/gemini-2.5-flash",
+            "chatgpt/gpt-5.4"
+        ]
+
+        for model in models_to_try:
+            payload = {
+                "model": model,
+                "messages": messages,
+                "temperature": 0.1,
+                "max_tokens": 2000
+            }
+
+            try:
+                async with httpx.AsyncClient(timeout=45.0) as client:
+                    resp = await client.post(url, headers=headers, json=payload)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        raw_content = data["choices"][0]["message"]["content"]
+                        
+                        # Extract JSON
+                        json_str = raw_content
+                        if "```json" in json_str:
+                            json_str = json_str.split("```json")[1].split("```")[0].strip()
+                        elif "```" in json_str:
+                            json_str = json_str.split("```")[1].split("```")[0].strip()
+
+                        try:
+                            parsed = json.loads(json_str)
+                            return {
+                                "store_name": parsed.get("store_name", "Supermarché"),
+                                "date": parsed.get("date"),
+                                "total": float(parsed.get("total", 0.0)) if parsed.get("total") is not None else None,
+                                "items": parsed.get("items", []),
+                                "model_used": model
+                            }
+                        except Exception as parse_err:
+                            logger.warning(f"Receipt JSON parsing error with model {model}: {parse_err}")
+                    else:
+                        logger.warning(f"Receipt OCR HTTP {resp.status_code} on {model}: {resp.text[:200]}")
+            except Exception as e:
+                logger.warning(f"Receipt OCR exception on {model}: {e}")
+
+        # Fallback if image OCR fails or LiteLLM is unavailable
+        return {
+            "store_name": "Ticket importé",
+            "date": None,
+            "total": None,
+            "items": [],
+            "model_used": "none"
+        }

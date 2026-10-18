@@ -58,7 +58,12 @@ export interface GroceryItem {
   quantity: number;
   unit: string;
   category: string;
+  item_type: 'grocery' | 'material';
+  scope: 'group' | 'personal';
+  beneficiary_id?: string;
+  beneficiary_name?: string;
   estimated_price?: number;
+  actual_price?: number;
   is_bought: boolean;
   bought_by_id?: string;
   bought_by_name?: string;
@@ -66,6 +71,54 @@ export interface GroceryItem {
   assigned_to_name?: string;
   notes?: string;
   created_at: string;
+}
+
+export interface ReceiptExtractedItem {
+  name: string;
+  price: number;
+  quantity?: number;
+}
+
+export interface ReceiptItemMatch {
+  item_id: string;
+  item_name: string;
+  item_type: 'grocery' | 'material';
+  scope: 'group' | 'personal';
+  beneficiary_id?: string;
+  current_estimated_price?: number;
+  matched_receipt_name: string;
+  matched_price: number;
+  confidence: number;
+}
+
+export interface ReceiptScanResponse {
+  store_name?: string;
+  receipt_date?: string;
+  receipt_total?: number;
+  extracted_items: ReceiptExtractedItem[];
+  matches: ReceiptItemMatch[];
+  unmatched_receipt_items: ReceiptExtractedItem[];
+  receipt_image_url?: string;
+}
+
+export interface ApplyReceiptPayload {
+  items: Array<{
+    item_id: string;
+    actual_price: number;
+    is_bought?: boolean;
+  }>;
+  new_items?: Array<{
+    name: string;
+    price: number;
+    category?: string;
+    item_type?: 'grocery' | 'material';
+    scope?: 'group' | 'personal';
+    beneficiary_id?: string;
+  }>;
+  create_expense?: boolean;
+  expense_title?: string;
+  payer_id?: string;
+  receipt_url?: string;
 }
 
 export interface ExpenseSplit {

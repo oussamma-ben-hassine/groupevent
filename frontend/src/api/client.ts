@@ -1,6 +1,6 @@
 import {
   CurrentActor, EventItem, GroceryItem, Expense, BalancesData,
-  Settlement, PublicInviteInfo
+  Settlement, PublicInviteInfo, ReceiptScanResponse, ApplyReceiptPayload
 } from '../types';
 
 const API_BASE = '';
@@ -88,6 +88,26 @@ export const api = {
   deleteGrocery: (eventId: string, itemId: string) => request<void>(`/api/events/${eventId}/groceries/${itemId}`, {
     method: 'DELETE'
   }),
+  claimGrocery: (eventId: string, itemId: string, action: 'claim' | 'release' = 'claim') =>
+    request<GroceryItem>(`/api/events/${eventId}/groceries/${itemId}/claim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    }),
+  scanReceipt: async (eventId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request<ReceiptScanResponse>(`/api/events/${eventId}/groceries/scan-receipt`, {
+      method: 'POST',
+      body: formData
+    });
+  },
+  applyReceipt: (eventId: string, payload: ApplyReceiptPayload) =>
+    request<any>(`/api/events/${eventId}/groceries/apply-receipt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }),
   convertGroceriesToExpense: (eventId: string, title?: string, totalAmount?: number) =>
     request<any>(`/api/events/${eventId}/groceries/to-expense`, {
       method: 'POST',

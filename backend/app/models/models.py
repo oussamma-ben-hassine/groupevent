@@ -109,6 +109,10 @@ class GroceryItem(Base):
     unit = Column(String(50), default="pièce")
     category = Column(String(100), default="Autre")
     estimated_price = Column(Float, nullable=True)
+    actual_price = Column(Float, nullable=True)
+    item_type = Column(String(50), default="grocery")  # 'grocery', 'material'
+    scope = Column(String(50), default="group")        # 'group', 'personal'
+    beneficiary_id = Column(String(36), ForeignKey("event_members.id", ondelete="SET NULL"), nullable=True)
     is_bought = Column(Boolean, default=False)
     bought_by_id = Column(String(36), ForeignKey("event_members.id", ondelete="SET NULL"), nullable=True)
     assigned_to_id = Column(String(36), ForeignKey("event_members.id", ondelete="SET NULL"), nullable=True)
@@ -119,6 +123,7 @@ class GroceryItem(Base):
     event = relationship("Event", back_populates="groceries")
     bought_by = relationship("EventMember", foreign_keys=lambda: [GroceryItem.bought_by_id])
     assigned_to = relationship("EventMember", foreign_keys=lambda: [GroceryItem.assigned_to_id])
+    beneficiary = relationship("EventMember", foreign_keys=lambda: [GroceryItem.beneficiary_id])
 
 
 class Expense(Base):

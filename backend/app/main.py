@@ -23,12 +23,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger("groupevent")
 
+from sqlalchemy import text
+
 async def init_db_schema():
     retries = 20
     while retries > 0:
         try:
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+                # Ensure new columns exist on existing database instances
+                await conn.execute(text("""
+                    ALTER TABLE grocery_items ADD COLUMN IF NOT EXISTS actual_price FLOAT DEFAULT NULL;
+                    ALTER TABLE grocery_items ADD COLUMN IF NOT EXISTS item_type VARCHAR(50) DEFAULT 'grocery';
+                    ALTER TABLE grocery_items ADD COLUMN IF NOT EXISTS scope VARCHAR(50) DEFAULT 'group';
+                    ALTER TABLE grocery_items ADD COLUMN IF NOT EXISTS beneficiary_id VARCHAR(36) REFERENCES event_members(id) ON DELETE SET NULL;
+                """))
             logger.info("Database schema verified (Zero demo data initialized).")
             break
         except Exception as e:
