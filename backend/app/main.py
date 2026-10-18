@@ -32,12 +32,17 @@ async def init_db_schema():
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
                 # Ensure new columns exist on existing database instances
-                await conn.execute(text("""
-                    ALTER TABLE grocery_items ADD COLUMN IF NOT EXISTS actual_price FLOAT DEFAULT NULL;
-                    ALTER TABLE grocery_items ADD COLUMN IF NOT EXISTS item_type VARCHAR(50) DEFAULT 'grocery';
-                    ALTER TABLE grocery_items ADD COLUMN IF NOT EXISTS scope VARCHAR(50) DEFAULT 'group';
-                    ALTER TABLE grocery_items ADD COLUMN IF NOT EXISTS beneficiary_id VARCHAR(36) REFERENCES event_members(id) ON DELETE SET NULL;
-                """))
+                stmts = [
+                    "ALTER TABLE grocery_items ADD COLUMN IF NOT EXISTS actual_price FLOAT DEFAULT NULL",
+                    "ALTER TABLE grocery_items ADD COLUMN IF NOT EXISTS item_type VARCHAR(50) DEFAULT 'grocery'",
+                    "ALTER TABLE grocery_items ADD COLUMN IF NOT EXISTS scope VARCHAR(50) DEFAULT 'group'",
+                    "ALTER TABLE grocery_items ADD COLUMN IF NOT EXISTS beneficiary_id VARCHAR(36)"
+                ]
+                for stmt in stmts:
+                    try:
+                        await conn.execute(text(stmt))
+                    except Exception as col_err:
+                        logger.warning(f"Column migration notice ({stmt}): {col_err}")
             logger.info("Database schema verified (Zero demo data initialized).")
             break
         except Exception as e:
