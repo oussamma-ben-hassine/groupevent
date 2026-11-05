@@ -34,7 +34,7 @@ class AuthService:
         }
 
         query_string = urllib.parse.urlencode(params)
-        auth_url = f"{settings.SSO_BASE_URL.rstrip('/')}/oauth/authorize?{query_string}"
+        auth_url = f"{settings.SSO_BASE_URL.rstrip('/')}/protocol/openid-connect/auth?{query_string}"
         return auth_url, state, code_verifier
 
     @staticmethod
@@ -43,8 +43,8 @@ class AuthService:
         code_verifier: str,
         db: AsyncSession
     ) -> User:
-        token_endpoint = f"{settings.SSO_BASE_URL.rstrip('/')}/oauth/token"
-        userinfo_endpoint = f"{settings.SSO_BASE_URL.rstrip('/')}/oauth/userinfo"
+        token_endpoint = f"{settings.SSO_BASE_URL.rstrip('/')}/protocol/openid-connect/token"
+        userinfo_endpoint = f"{settings.SSO_BASE_URL.rstrip('/')}/protocol/openid-connect/userinfo"
 
         token_data = {
             "grant_type": "authorization_code",
